@@ -927,11 +927,8 @@ function renderStudyQ() {
 function formatExplanation(text) {
   if (!text) return '';
   return text
-    .replace(/
-
-/g, '</p><p style="margin-top:8px">')
-    .replace(/
-/g, '<br>')
+    .replace(/\n\n/g, '</p><p style="margin-top:8px">')
+    .replace(/\n/g, '<br>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
