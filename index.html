@@ -551,49 +551,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#F1F5F9;color:var(--
   </div>
 
   <div class="card">
-    <div class="card-title">🗄️ Supabase — Schema SQL</div>
-    <div class="card-sub" style="margin-bottom:12px">Ruleaza acest SQL in Supabase → SQL Editor pentru a crea tabelele necesare</div>
-    <div style="background:#0F172A;border-radius:10px;padding:14px;font-size:11px;line-height:2;color:#93C5FD;font-family:monospace;overflow-x:auto">
-      -- Tabel progres per utilizator<br>
-      CREATE TABLE IF NOT EXISTS progress (<br>
-      &nbsp;&nbsp;id BIGSERIAL PRIMARY KEY,<br>
-      &nbsp;&nbsp;user_email TEXT NOT NULL,<br>
-      &nbsp;&nbsp;question_id TEXT NOT NULL,<br>
-      &nbsp;&nbsp;correct BOOLEAN,<br>
-      &nbsp;&nbsp;times INTEGER DEFAULT 1,<br>
-      &nbsp;&nbsp;last_date TEXT,<br>
-      &nbsp;&nbsp;UNIQUE(user_email, question_id)<br>
-      );<br>
-      <br>
-      -- Tabel clasament<br>
-      CREATE TABLE IF NOT EXISTS leaderboard (<br>
-      &nbsp;&nbsp;user_email TEXT PRIMARY KEY,<br>
-      &nbsp;&nbsp;user_name TEXT,<br>
-      &nbsp;&nbsp;school TEXT,<br>
-      &nbsp;&nbsp;score INTEGER DEFAULT 0,<br>
-      &nbsp;&nbsp;studied INTEGER DEFAULT 0,<br>
-      &nbsp;&nbsp;updated_at TIMESTAMP DEFAULT NOW()<br>
-      );<br>
-      <br>
-      -- Acces public de citire clasament<br>
-      ALTER TABLE leaderboard ENABLE ROW LEVEL SECURITY;<br>
-      CREATE POLICY "public read" ON leaderboard FOR SELECT USING (true);<br>
-      CREATE POLICY "user write" ON leaderboard FOR ALL USING (auth.email() = user_email);
-    </div>
-  </div>
-
-  <div class="card">
     <div class="card-title">📁 Instructiuni GitHub Pages</div>
     <div class="card-sub" style="margin-bottom:12px">Publica aplicatia online gratuit</div>
     <div style="background:var(--light);border-radius:10px;padding:14px;font-size:12px;line-height:2;color:var(--slate);font-family:monospace">
-      1. Descarca acest fisier HTML (Director_Academy_v4.html)<br>
-      2. Redenumeste-l → index.html<br>
-      3. Creeaza cont pe github.com<br>
-      4. New repository → "director-academy" → Public<br>
-      5. Add file → Upload files → incarca index.html<br>
-      6. Settings → Pages → Source: Deploy from branch → main<br>
-      7. URL: https://[username].github.io/director-academy<br>
-      8. Optional: adauga URL Supabase in Setari pentru multi-user
+      1. Descarca acest fisier HTML<br>
+      2. Creeaza cont pe github.com<br>
+      3. New repository → "director-academy" → Public<br>
+      4. Upload fisier HTML (redenumit index.html)<br>
+      5. Settings → Pages → Source: main branch<br>
+      6. URL: https://[username].github.io/director-academy
     </div>
   </div>
 
@@ -943,9 +909,7 @@ function renderStudyQ() {
     exp = 'Raspunsul corect este: ' + q.options[q.correct] + '. Studiaza aceasta intrebare cu atentie!';
   }
   // Make explanation nicer
-  exp = exp.replace(/Raspunsul corect este:.*?
-
-/s, '').trim();
+  exp = exp.split('\n\n').slice(1).join('\n\n').trim(); if(!exp) exp = '';
   document.getElementById('studyExpText').innerHTML = formatExplanation(exp);
   
   document.getElementById('btnStudyPrev').style.opacity = state.studyIdx === 0 ? '0.4' : '1';
@@ -1092,9 +1056,7 @@ function checkAnswer() {
   
   // Show explanation
   let exp = q.explanation || '';
-  exp = exp.replace(/Raspunsul corect este:.*?
-
-/s, '').trim();
+  exp = exp.split('\n\n').slice(1).join('\n\n').trim(); if(!exp) exp = '';
   document.getElementById('testExpText').innerHTML = formatExplanation(exp) || 'Raspunsul corect: ' + q.options[q.correct];
   document.getElementById('testExp').classList.remove('hidden');
   document.getElementById('testExp').className = 'exp-box ' + (isCorrect ? 'ok' : 'info');
