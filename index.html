@@ -436,6 +436,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#F1F5F9;color:var(--
 
     <button class="btn btn-primary" onclick="startTest()" style="width:100%;margin-top:4px;padding:14px;font-size:15px">🚀 Incepe testul</button>
     <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:14px" onclick="startFinalTest()">📋 Simulare examen real — 25 intrebari (7+6+6+6)</button>
+      <button class="btn" style="width:100%;margin-top:8px;padding:14px;background:linear-gradient(135deg,#DC2626,#EF4444);color:#fff" onclick="startWeakTest()">🎯 Test puncte slabe (intrebari gresite)</button>
   </div>
 
   <div id="testSession" class="hidden">
@@ -945,7 +946,8 @@ function startStudyDomain(d) {
     qs = qs.filter((q,i) => { const p = state.progress[d+'_'+i]; return p && !p.correct; });
     if (!qs.length) { toast('Nu ai raspunsuri gresite la acest domeniu!'); return; }
   } else if (studyMode === 'weak') {
-    qs = qs.filter((q,i) => { const p = state.progress[d+'_'+i]; return !p || p.times < 2; });
+    qs = qs.filter((q,i) => { const p = state.progress[d+'_'+i]; return p && (p.wrongCount||0) > 0; });
+    if (!qs.length) { showToast('Nu ai intrebari gresite la acest domeniu!'); return; }
   }
   
   state.studyQ = qs.map((q,origIdx) => ({...q, origIdx: QS.questions[d].indexOf(q)}));
@@ -986,7 +988,6 @@ function renderStudyQ() {
     exp = 'Raspunsul corect este: ' + q.options[q.correct] + '. Studiaza aceasta intrebare cu atentie!';
   }
   // Make explanation nicer
-  exp = exp.split('\n\n').slice(1).join('\n\n').trim(); if(!exp) exp = '';
   document.getElementById('studyExpText').innerHTML = formatExplanation(exp);
   
   document.getElementById('btnStudyPrev').style.opacity = state.studyIdx === 0 ? '0.4' : '1';
@@ -1101,6 +1102,44 @@ function startFinalTest() {
   showToast('📋 Simulare examen real: 25 intrebari (7+6+6+6)');
 }
 
+
+function startWeakTest() {
+  // Collect all questions the user has gotten wrong at least once
+  let pool = [];
+  Object.keys(QS.questions).forEach(d => {
+    QS.questions[d].forEach((q,i) => {
+      const pid = d + '_' + i;
+      const p = state.progress[pid];
+      if (p && (p.wrongCount||0) > 0 && q.q && q.q.length >= 10 && q.options && q.options.length >= 3) {
+        // Exclude broken questions (start with lowercase)
+        if (q.q[0] === q.q[0].toLowerCase() && q.q[0] !== q.q[0].toUpperCase()) return;
+        pool.push({...q, d, origIdx:i, wrongCount: p.wrongCount||0});
+      }
+    });
+  });
+  
+  if (pool.length === 0) {
+    showToast('Nu ai intrebari gresite inca! Fa mai intai un test.');
+    return;
+  }
+  
+  // Sort by wrong count (most wrong first), then shuffle within same count
+  pool.sort((a,b) => (b.wrongCount||0) - (a.wrongCount||0));
+  
+  // Limit to 30 questions max
+  if (pool.length > 30) pool = pool.slice(0, 30);
+  
+  state.testQ = pool;
+  state.testIdx = 0;
+  state.testAnswers = [];
+  
+  document.getElementById('testConfig').classList.add('hidden');
+  document.getElementById('testSession').classList.remove('hidden');
+  document.getElementById('testResult').classList.add('hidden');
+  renderTestQ();
+  showToast('🎯 Test puncte slabe: ' + pool.length + ' intrebari');
+}
+
 function renderTestQ() {
   const q = state.testQ[state.testIdx];
   if (!q) return;
@@ -1152,20 +1191,22 @@ function checkAnswer() {
   if (!state.progress[pid]) state.progress[pid] = {times:0};
   state.progress[pid].correct = isCorrect;
   state.progress[pid].times = (state.progress[pid].times||0) + 1;
+  state.progress[pid].wrongCount = (state.progress[pid].wrongCount||0) + (isCorrect ? 0 : 1);
   state.progress[pid].lastDate = todayStr();
   trackActivity();
   saveState();
   
+  const correctIdx = (typeof q.correct === 'number' && q.correct < opts.length) ? q.correct : 0;
   opts.forEach((btn, i) => {
     btn.classList.add('locked');
-    if (i === q.correct) btn.classList.add('reveal-ok');
-    else if (i === selectedIdx && !isCorrect) btn.classList.add('reveal-no');
+    if (i === correctIdx) btn.classList.add('reveal-ok');
+    else if (i === selectedIdx && i !== correctIdx) btn.classList.add('reveal-no');
   });
   
   // Show explanation
   let exp = q.explanation || '';
-  exp = exp.split('\n\n').slice(1).join('\n\n').trim(); if(!exp) exp = '';
-  document.getElementById('testExpText').innerHTML = formatExplanation(exp) || 'Raspunsul corect: ' + q.options[q.correct];
+  const _cIdx = (typeof q.correct === 'number' && q.correct < q.options.length) ? q.correct : 0;
+  document.getElementById('testExpText').innerHTML = formatExplanation(exp) || 'Raspunsul corect: ' + (q.options[_cIdx] || '');
   document.getElementById('testExp').classList.remove('hidden');
   document.getElementById('testExp').className = 'exp-box ' + (isCorrect ? 'ok' : 'info');
   
