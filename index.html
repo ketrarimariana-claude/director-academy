@@ -1004,10 +1004,17 @@ function renderStudyQ() {
 
 function formatExplanation(text) {
   if (!text) return '';
-  return text
-    .replace(/\n\n/g, '</p><p style="margin-top:8px">')
-    .replace(/\n/g, '<br>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Split into paragraphs, wrap each properly to avoid malformed HTML
+  var paragraphs = text.split(/\n\n+/);
+  return paragraphs.map(function(p) {
+    var content = p
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    return '<p style="margin:0 0 8px 0">' + content + '</p>';
+  }).join('');
 }
 
 function studyNav(dir) {
@@ -1141,78 +1148,113 @@ function startWeakTest() {
 }
 
 function renderTestQ() {
-  const q = state.testQ[state.testIdx];
-  if (!q) return;
-  const total = state.testQ.length;
-  const pct = Math.round((state.testIdx)/total*100);
-  const d = q.d;
-  const col = DOMAIN_COLORS[d];
-  
-  document.getElementById('testProgressFill').style.width = pct + '%';
-  document.getElementById('testProgressFill').style.background = 'linear-gradient(90deg,' + col.c + ',#10B981)';
-  document.getElementById('testCounter').textContent = (state.testIdx+1) + ' / ' + total;
-  document.getElementById('testQNum').textContent = 'INTREBAREA ' + (state.testIdx+1);
-  document.getElementById('testQNum').style.color = col.c;
-  document.getElementById('testQText').textContent = q.q;
-  
-  const optsEl = document.getElementById('testOpts');
-  optsEl.innerHTML = '';
-  const labels = ['A','B','C','D','E'];
-  q.options.forEach((opt, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'opt-quiz';
-    btn.innerHTML = '<div class="opt-badge">' + labels[i] + '</div><div>' + opt + '</div>';
-    btn.onclick = function() {
-      optsEl.querySelectorAll('.opt-quiz').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
+  try {
+    const q = state.testQ[state.testIdx];
+    if (!q) return;
+    const total = state.testQ.length;
+    const pct = Math.round((state.testIdx)/total*100);
+    const d = q.d;
+    const col = DOMAIN_COLORS[d] || DOMAIN_COLORS['1'];
+
+    document.getElementById('testProgressFill').style.width = pct + '%';
+    document.getElementById('testProgressFill').style.background = 'linear-gradient(90deg,' + col.c + ',#10B981)';
+    document.getElementById('testCounter').textContent = (state.testIdx+1) + ' / ' + total;
+    document.getElementById('testQNum').textContent = 'INTREBAREA ' + (state.testIdx+1);
+    document.getElementById('testQNum').style.color = col.c;
+    document.getElementById('testQText').textContent = q.q || '';
+
+    const optsEl = document.getElementById('testOpts');
+    optsEl.innerHTML = '';
+    const labels = ['A','B','C','D','E'];
+    const options = Array.isArray(q.options) ? q.options : [];
+    options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-quiz';
+      const badge = document.createElement('div');
+      badge.className = 'opt-badge';
+      badge.textContent = labels[i] || String(i+1);
+      const text = document.createElement('div');
+      text.textContent = opt || '';
+      btn.appendChild(badge);
+      btn.appendChild(text);
+      btn.onclick = function() {
+        optsEl.querySelectorAll('.opt-quiz').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('btnCheck').disabled = false;
+      };
+      optsEl.appendChild(btn);
+    });
+
+    document.getElementById('testExp').classList.add('hidden');
+    document.getElementById('btnCheck').classList.remove('hidden');
+    document.getElementById('btnCheck').disabled = true;
+    document.getElementById('btnNext').classList.add('hidden');
+  } catch(err) {
+    console.error('renderTestQ error:', err);
+    // Make sure buttons are in a usable state
+    try {
+      document.getElementById('btnCheck').classList.remove('hidden');
       document.getElementById('btnCheck').disabled = false;
-    };
-    optsEl.appendChild(btn);
-  });
-  
-  document.getElementById('testExp').classList.add('hidden');
-  document.getElementById('btnCheck').classList.remove('hidden');
-  document.getElementById('btnCheck').disabled = true;
-  document.getElementById('btnNext').classList.add('hidden');
+    } catch(e2) {}
+  }
 }
 
 function checkAnswer() {
-  const q = state.testQ[state.testIdx];
-  const opts = document.querySelectorAll('#testOpts .opt-quiz');
-  let selectedIdx = -1;
-  opts.forEach((btn, i) => { if (btn.classList.contains('selected')) selectedIdx = i; });
-  if (selectedIdx < 0) return;
-  
-  const isCorrect = selectedIdx === q.correct;
-  state.testAnswers.push({q, selected: selectedIdx, correct: q.correct, isCorrect});
-  
-  // Update progress
-  const pid = q.d + '_' + q.origIdx;
-  if (!state.progress[pid]) state.progress[pid] = {times:0};
-  state.progress[pid].correct = isCorrect;
-  state.progress[pid].times = (state.progress[pid].times||0) + 1;
-  state.progress[pid].wrongCount = (state.progress[pid].wrongCount||0) + (isCorrect ? 0 : 1);
-  state.progress[pid].lastDate = todayStr();
-  trackActivity();
-  saveState();
-  
-  const correctIdx = (typeof q.correct === 'number' && q.correct < opts.length) ? q.correct : 0;
-  opts.forEach((btn, i) => {
-    btn.classList.add('locked');
-    if (i === correctIdx) btn.classList.add('reveal-ok');
-    else if (i === selectedIdx && i !== correctIdx) btn.classList.add('reveal-no');
-  });
-  
-  // Show explanation
-  let exp = q.explanation || '';
-  const _cIdx = (typeof q.correct === 'number' && q.correct < q.options.length) ? q.correct : 0;
-  document.getElementById('testExpText').innerHTML = formatExplanation(exp) || 'Raspunsul corect: ' + (q.options[_cIdx] || '');
-  document.getElementById('testExp').classList.remove('hidden');
-  document.getElementById('testExp').className = 'exp-box ' + (isCorrect ? 'ok' : 'info');
-  
-  document.getElementById('btnCheck').classList.add('hidden');
-  document.getElementById('btnNext').classList.remove('hidden');
-  document.getElementById('btnNext').textContent = state.testIdx >= state.testQ.length-1 ? 'Vezi rezultatul →' : 'Urmatoarea →';
+  try {
+    const q = state.testQ[state.testIdx];
+    if (!q) return;
+    const opts = document.querySelectorAll('#testOpts .opt-quiz');
+    let selectedIdx = -1;
+    opts.forEach((btn, i) => { if (btn.classList.contains('selected')) selectedIdx = i; });
+    if (selectedIdx < 0) return;
+
+    const correctVal = (typeof q.correct === 'number') ? q.correct : parseInt(q.correct, 10) || 0;
+    const isCorrect = selectedIdx === correctVal;
+    state.testAnswers.push({q, selected: selectedIdx, correct: correctVal, isCorrect});
+
+    // Update progress
+    try {
+      const pid = q.d + '_' + q.origIdx;
+      if (!state.progress[pid]) state.progress[pid] = {times:0};
+      state.progress[pid].correct = isCorrect;
+      state.progress[pid].times = (state.progress[pid].times||0) + 1;
+      state.progress[pid].wrongCount = (state.progress[pid].wrongCount||0) + (isCorrect ? 0 : 1);
+      state.progress[pid].lastDate = todayStr();
+      trackActivity();
+      saveState();
+    } catch(saveErr) { console.error('progress save error:', saveErr); }
+
+    const correctIdx = (correctVal < opts.length) ? correctVal : 0;
+    opts.forEach((btn, i) => {
+      btn.classList.add('locked');
+      if (i === correctIdx) btn.classList.add('reveal-ok');
+      else if (i === selectedIdx && i !== correctIdx) btn.classList.add('reveal-no');
+    });
+
+    // Show explanation — use textContent fallback if explanation is missing
+    const expEl = document.getElementById('testExpText');
+    const exp = q.explanation || '';
+    const options = Array.isArray(q.options) ? q.options : [];
+    const fallback = 'Raspunsul corect: ' + (options[correctIdx] || '');
+    expEl.innerHTML = formatExplanation(exp) || ('<p style="margin:0">' + fallback + '</p>');
+
+    const expBox = document.getElementById('testExp');
+    expBox.className = 'exp-box ' + (isCorrect ? 'ok' : 'info');
+
+    document.getElementById('btnCheck').classList.add('hidden');
+    const btnNext = document.getElementById('btnNext');
+    btnNext.classList.remove('hidden');
+    btnNext.textContent = state.testIdx >= state.testQ.length-1 ? 'Vezi rezultatul →' : 'Urmatoarea →';
+  } catch(err) {
+    console.error('checkAnswer error:', err);
+    // Always show next button so user can continue
+    try {
+      document.getElementById('btnCheck').classList.add('hidden');
+      const btnNext = document.getElementById('btnNext');
+      btnNext.classList.remove('hidden');
+      btnNext.textContent = state.testIdx >= state.testQ.length-1 ? 'Vezi rezultatul →' : 'Urmatoarea →';
+    } catch(e2) {}
+  }
 }
 
 function nextTest() {
